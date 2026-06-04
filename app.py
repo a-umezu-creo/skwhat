@@ -6,39 +6,48 @@ import av
 import ssl
 from streamlit_webrtc import webrtc_streamer, RTCConfiguration
 
-# --- 1. 極限まで余白を削り、映像を巨大化するCSS ---
-st.set_page_config(page_title="AI Trainer", layout="centered")
+# --- 1. 映像を「画面の端から端まで」広げるための超強力なCSS ---
+st.set_page_config(page_title="AI Trainer", layout="wide")
 
 st.markdown(
     """
     <style>
-    /* ヘッダー、メニュー、フッターをすべて非表示 */
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-    
-    /* 画面の余白をゼロにする */
+    /* 1. Streamlit全体の余白を完全にゼロにする */
     .main .block-container {
-        max-width: 100% !important;
+        max-width: 100vw !important;
         padding: 0px !important;
         margin: 0px !important;
     }
+    
+    /* 2. webrtcのコンテナを画面いっぱいに広げる */
+    div[data-testid="stWebStreamer"] {
+        width: 100vw !important;
+        display: block;
+    }
 
-    /* カメラ映像を縦画面で最大化 */
+    /* 3. ビデオタグそのものを画面の横幅100%・高さ固定に強制する */
     video {
         width: 100vw !important;
-        height: 75vh !important; /* 画面の75%をカメラに */
-        object-fit: cover !important;
-        background-color: black;
+        height: 65vh !important; /* 画面の65%を映像が占領 */
+        object-fit: cover !important; /* アスペクト比を保ちつつ枠を埋める */
+        background-color: #000;
+    }
+
+    /* 4. 「Video Input」などの操作パネルを小さくし、下に置く */
+    div[data-testid="stWebStreamer"] > div {
+        padding: 10px !important;
     }
     
-    /* 回数表示を巨大にする */
-    .count-text {
-        font-size: 80px !important;
+    /* 5. カウント表示用の巨大テキストスタイル */
+    .big-count {
+        position: fixed;
+        bottom: 15%;
+        right: 10%;
+        font-size: 120px !important;
         font-weight: bold;
         color: #FF4B4B;
-        text-align: center;
-        margin-top: -20px;
+        text-shadow: 4px 4px 0px #000;
+        z-index: 100;
     }
     </style>
     """,
@@ -48,13 +57,13 @@ st.markdown(
 # SSL対策
 ssl._create_default_https_context = ssl._create_unverified_context
 
-# MediaPipe
+# MediaPipe設定
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 pose = mp_pose.Pose(model_complexity=1, min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
 if "tracker" not in st.session_state:
-    st.session_state["tracker"] = {"count": 0, "stage": "up", "feedback": "", "warning": ""}
+    st.session_state["tracker"] = {"count": 0, "stage": "up", "feedback": ""}
 
 tracker = st.session_state["tracker"]
 
@@ -77,55 +86,44 @@ def video_frame_callback(frame):
         ankle = [landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].x, landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].y]
 
         knee_angle = calculate_angle(hip, knee, ankle)
-        hip_angle = calculate_angle(shoulder, hip, knee)
 
-        # カウントロジック
         if knee_angle < 110:
             tracker["stage"] = "down"
-            tracker["feedback"] = "UP!"
         if knee_angle > 160 and tracker["stage"] == "down":
             tracker["stage"] = "up"
             tracker["count"] += 1
-            tracker["feedback"] = "OK!"
         
-        tracker["warning"] = "STRAIGHT!" if tracker["stage"] == "down" and hip_angle < 70 else ""
-        
-        # 骨格描画（少し太くする）
         mp_drawing.draw_landmarks(img, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
-                                  mp_drawing.DrawingSpec(color=(245,117,66), thickness=4, circle_radius=4))
+                                  mp_drawing.DrawingSpec(color=(255,255,255), thickness=4, circle_radius=2))
 
-        # 【超巨大文字】画面中央付近にカウントを表示
+        # 映像内の文字をさらに巨大化 (遠距離用)
         cv2.putText(img, str(tracker["count"]), (50, 150), 
-                    cv2.FONT_HERSHEY_DUPLEX, 5.0, (255, 255, 255), 10, cv2.LINE_AA)
-        
-        # フィードバック表示
-        if tracker["feedback"]:
-            cv2.putText(img, tracker["feedback"], (50, 250), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 2.0, (0, 255, 0), 5, cv2.LINE_AA)
-
-        # 警告表示（画面が赤く光るように）
-        if tracker["warning"]:
-            cv2.rectangle(img, (0, 0), (img.shape[1], img.shape[0]), (0, 0, 255), 10)
-            cv2.putText(img, "BACK!", (50, 400), cv2.FONT_HERSHEY_SIMPLEX, 3.0, (0, 0, 255), 10, cv2.LINE_AA)
+                    cv2.FONT_HERSHEY_DUPLEX, 5.0, (255, 255, 255), 12, cv2.LINE_AA)
 
     return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-# --- メイン画面 ---
+# --- メイン表示 ---
+# webrtcのコントロールをあえて下にするため、先にコンテナを表示
+st.write("### AIトレーニング")
+
 webrtc_streamer(
-    key="squat-pro",
+    key="squat-ultra",
     video_frame_callback=video_frame_callback,
     rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
-    media_stream_constraints={"video": {"facingMode": "user"}, "audio": False},
+    media_stream_constraints={
+        "video": {"width": {"ideal": 1280}, "height": {"ideal": 720}, "facingMode": "user"},
+        "audio": False
+    },
     video_html_attrs={
-        "style": {"width": "100vw", "height": "75vh", "object-fit": "cover"},
+        "style": {"width": "100%", "height": "65vh", "object-fit": "cover"},
         "autoPlay": True, "playsInline": True
     },
     async_processing=True,
 )
 
-# 下部に巨大な回数を表示
-st.markdown(f'<div class="count-text">{tracker["count"]}</div>', unsafe_allow_html=True)
+# 画面右下に固定された巨大な回数表示
+st.markdown(f'<div class="big-count">{tracker["count"]}</div>', unsafe_allow_html=True)
 
-if st.button("RESET", use_container_width=True):
+if st.button("RESET"):
     tracker["count"] = 0
     st.rerun()
