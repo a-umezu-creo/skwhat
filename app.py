@@ -1,9 +1,17 @@
 import streamlit as st
+import ssl
+import urllib.request
+
+# --- MediaPipeのモデルダウンロード失敗対策 ---
+ssl._create_default_https_context = ssl._create_unverified_context
+# ---------------------------------------
+
 from streamlit_webrtc import webrtc_streamer, RTCConfiguration
 import cv2
-import mediapipe as mp  # 標準的なインポートに戻す
+import mediapipe as mp
 import numpy as np
 import av
+
 
 # --- MediaPipeの設定 ---
 from mediapipe.python.solutions import pose as mp_pose
