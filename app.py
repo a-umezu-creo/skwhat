@@ -24,7 +24,7 @@ if not hasattr(mp, 'solutions'):
 
 # pose の初期化部分を修正
 pose = mp_pose.Pose(
-    model_complexity=0, 
+    model_complexity=1, 
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5
 )
