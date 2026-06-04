@@ -6,10 +6,17 @@ import numpy as np
 import av
 
 # --- MediaPipeの設定 ---
-mp_pose = mp.solutions.pose
-mp_drawing = mp.solutions.drawing_utils
+from mediapipe.python.solutions import pose as mp_pose
+from mediapipe.python.solutions import drawing_utils as mp_drawing
+
+# インポートチェック（デバッグ用）
+if not hasattr(mp, 'solutions'):
+    # この書き方なら solutions がなくても mp_pose が直接使えます
+    pass
+
+# pose の初期化部分を修正
 pose = mp_pose.Pose(
-    model_complexity=0, # 0: Lite (スマホ・クラウド向け), 1: Full
+    model_complexity=0, 
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5
 )
