@@ -114,7 +114,7 @@ def check_password():
         # パスワードがまだ入力されていない場合
         password = st.text_input("パスワードを入力してください", type="password")
         if st.sidebar.button("ログイン") or password:
-            if password == "あなたの好きなパスワード": # ここにパスワードを設定
+            if password == "passlike": # ここにパスワードを設定
                 st.session_state["authenticated"] = True
                 st.rerun()
             else:
