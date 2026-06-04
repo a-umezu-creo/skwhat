@@ -1,7 +1,7 @@
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration
+from streamlit_webrtc import webrtc_streamer, RTCConfiguration
 import cv2
-import mediapipe as mp
+import mediapipe as mp  # 標準的なインポートに戻す
 import numpy as np
 import av
 
