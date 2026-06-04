@@ -6,27 +6,36 @@ import av
 import ssl
 from streamlit_webrtc import webrtc_streamer, RTCConfiguration
 
-# --- 1. ページ設定と画面修正CSS ---
-st.set_page_config(page_title="AI Squat Trainer", layout="wide")
+# --- 1. ページ設定とスマホ縦画面専用CSS ---
+st.set_page_config(page_title="AI Squat Trainer", layout="centered")
 
 st.markdown(
     """
     <style>
-    /* 全体の余白を削る */
+    /* メインコンテンツの幅を調整 */
     .main .block-container {
-        padding-top: 1rem;
-        padding-bottom: 1rem;
+        max-width: 100%;
+        padding: 0.5rem;
     }
-    /* ビデオ表示エリアを横幅いっぱいに広げ、高さを出す */
+    /* カメラ映像をスマホの縦画面いっぱいに広げる */
     div[data-testid="stWebStreamer"] {
         width: 100% !important;
+        margin-bottom: 10px;
     }
     video {
         width: 100% !important;
         height: auto !important;
-        aspect-ratio: 4 / 3 !important; /* 強制的に比率を固定 */
-        object-fit: cover !important;  /* 細くならずに枠を埋める */
-        border-radius: 10px;
+        /* 縦長比率に設定 (9:16) */
+        aspect-ratio: 9 / 14 !important; 
+        object-fit: cover !important; 
+        border-radius: 15px;
+        background-color: #000;
+    }
+    /* ボタンなどのUIを大きくする */
+    .stButton button {
+        width: 100%;
+        height: 3rem;
+        font-size: 1.2rem !important;
     }
     </style>
     """,
@@ -41,7 +50,7 @@ mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 pose = mp_pose.Pose(model_complexity=1, min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
-# --- 2. 状態管理 ---
+# 状態管理
 if "tracker" not in st.session_state:
     st.session_state["tracker"] = {"count": 0, "stage": "up", "feedback": "Ready", "warning": ""}
 
@@ -53,18 +62,18 @@ def calculate_angle(a, b, c):
     angle = np.abs(radians * 180.0 / np.pi)
     return angle if angle <= 180.0 else 360 - angle
 
-# --- 3. 映像処理コールバック ---
+# --- 映像処理コールバック ---
 def video_frame_callback(frame):
     img = frame.to_ndarray(format="bgr24")
-    img = cv2.flip(img, 1) # 鏡面
+    img = cv2.flip(img, 1) 
     
+    # スマホ縦画面では、映像の「中心」を使って処理
     rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     results = pose.process(rgb_img)
 
     if results.pose_landmarks:
         landmarks = results.pose_landmarks.landmark
         
-        # 判定用座標
         shoulder = [landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x, landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
         hip = [landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].x, landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].y]
         knee = [landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].x, landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].y]
@@ -73,7 +82,6 @@ def video_frame_callback(frame):
         knee_angle = calculate_angle(hip, knee, ankle)
         hip_angle = calculate_angle(shoulder, hip, knee)
 
-        # カウント
         if knee_angle < 110:
             tracker["stage"] = "down"
             tracker["feedback"] = "UP!"
@@ -84,35 +92,32 @@ def video_frame_callback(frame):
         
         tracker["warning"] = "Back Straight!" if tracker["stage"] == "down" and hip_angle < 70 else ""
 
-        # 骨格描画
         mp_drawing.draw_landmarks(img, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
         
-        # UI描画 (文字位置とサイズを調整)
-        cv2.rectangle(img, (0, 0), (280, 140), (245, 117, 16), -1)
-        cv2.putText(img, f"COUNT: {tracker['count']}", (10, 45), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
-        cv2.putText(img, f"STAGE: {tracker['stage']}", (10, 85), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
-        cv2.putText(img, tracker["feedback"], (10, 125), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
+        # 描画位置を少し内側に寄せる（object-fit:coverでの見切れ防止）
+        cv2.rectangle(img, (20, 20), (300, 160), (245, 117, 16), -1)
+        cv2.putText(img, f"COUNT: {tracker['count']}", (40, 70), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 3, cv2.LINE_AA)
+        cv2.putText(img, tracker["feedback"], (40, 130), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
 
         if tracker["warning"]:
-            cv2.rectangle(img, (0, img.shape[0]-50), (img.shape[1], img.shape[0]), (0, 0, 255), -1)
-            cv2.putText(img, tracker["warning"], (50, img.shape[0]-15), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+            cv2.rectangle(img, (0, img.shape[0]-80), (img.shape[1], img.shape[0]), (0, 0, 255), -1)
+            cv2.putText(img, tracker["warning"], (80, img.shape[0]-30), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 3, cv2.LINE_AA)
 
     return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-# --- 4. メインUI ---
-st.title("🏋️ AI スクワットトレーナー")
+# --- メインUI ---
+st.title("🏋️ AI トレーナー")
 
 RTC_CONFIGURATION = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
 
-# 映像表示コンテナ
 webrtc_streamer(
     key="squat-counter",
     video_frame_callback=video_frame_callback,
     rtc_configuration=RTC_CONFIGURATION,
     media_stream_constraints={
         "video": {
-            "width": {"ideal": 640},
-            "height": {"ideal": 480},
+            "width": {"ideal": 480},
+            "height": {"ideal": 640},
             "facingMode": "user",
         },
         "audio": False
@@ -120,7 +125,7 @@ webrtc_streamer(
     video_html_attrs={
         "style": {
             "width": "100%", 
-            "aspect-ratio": "4 / 3",
+            "aspect-ratio": "9 / 14", # 縦長比率
             "object-fit": "cover"
         },
         "controls": False,
@@ -130,10 +135,11 @@ webrtc_streamer(
     async_processing=True,
 )
 
-st.write(f"### カウント: {tracker['count']}")
+# カウント表示を大きく
+st.metric(label="現在の回数", value=f"{tracker['count']} 回")
 
 if st.button("リセット"):
     tracker["count"] = 0
     st.rerun()
 
-st.info("カメラを起動して、全身が映るまで離れてください。")
+st.info("スマホを立てかけて、全身が映るまで離れてください。")
