@@ -103,8 +103,6 @@ def video_frame_callback(frame):
 
 # --- Streamlit UI設定 ---
 
-import streamlit as st
-
 # --- 簡易パスワード認証 ---
 def check_password():
     if "authenticated" not in st.session_state:
